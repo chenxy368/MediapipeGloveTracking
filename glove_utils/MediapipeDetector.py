@@ -44,7 +44,7 @@ class HandDetector():
             success = True
             for handLms in self.results.multi_hand_landmarks:
                 if draw:
-                    self.mpDraw.draw_landmarks(drawOn, handLms,self.mpHands.HAND_CONNECTIONS)
+                    self.mpDraw.draw_landmarks(drawOn, handLms, self.mpHands.HAND_CONNECTIONS)
 
         return success
     

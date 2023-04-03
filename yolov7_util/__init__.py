@@ -1,1 +1,1 @@
-from yolov7_util.yolov7mask import Yolov7Generator
+from yolov7_util.predict import run

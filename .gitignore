@@ -1,0 +1,8 @@
+# Byte-compiled / optimized / DLL files
+**__pycache__/
+
+# Source
+video/
+
+# Results
+runs/ 

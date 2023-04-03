@@ -7,28 +7,48 @@ The class of glove solver to preprocess input
 
 @author: Xinyang Chen
 """
+from pathlib import Path
+import os
+import sys
+
+FILE = Path(__file__).resolve()
+ROOT = FILE.parents[0]  # YOLOv5 root directory
+if str(ROOT) not in sys.path:
+    sys.path.append(str(ROOT))  # add ROOT to PATH
+ROOT = Path(os.path.relpath(ROOT, Path.cwd()))  # relative
 
 import cv2 as cv
 import numpy as np
 import copy
-from glove_utils.OpenCVMaskGenerator import MaskGenerator
+
+from glove_utils import HandDetector
+from glove_utils.GlobalQueue import put_value, put_EOF
 
 class GloveSolver():
     def __init__(self, lowBound=np.array([0, 127, 127]), highBound=np.array([255, 137, 137]),
                 imgsz = (640, 640), buffer=np.array([0, 20, 20]), sampleSize=40, img=None, lab=None):
         # check definition of lowBound, highBound, sampleSize and segmentBuffer in MaskGenerator class
         self.imgsz = imgsz
-        self.maskGenerator = MaskGenerator(lowBound, highBound, self.imgsz)
+        
+        self.lowBound = lowBound # the low boundary of color mask
+        self.highBound = highBound # the high boundary of color mask
+        self.colorMask = np.zeros([self.imgsz[1], self.imgsz[0]], dtype = bool)
         
         self.sample_size = sampleSize # the size of each sample circle in fine sampling
         self.buffer = buffer # the shifting amount in LAB color space
         self.bound_state = False # the status of shifing amount (self.buffer[0]) initialization
         
         self.img = img # the image on present frame
-        self.blur = img # the blured image on present frame
         self.lab = lab # the image in LAB color space
         self.success_detect = False
     
+    
+    def getColorMask(self, lab):
+        trim = cv.inRange(lab, self.lowBound, self.highBound)            
+        check = np.zeros([trim.shape[0], trim.shape[1], 1])
+        check[:,:,0]= trim[:,:]
+        self.colorMask = np.all(check == 255,axis=-1)
+        
     def colorChange(self, labSample, LArea, ABArea, amount):   
         """
         @brief: change color inside LAB color space with buffer
@@ -106,25 +126,19 @@ class GloveSolver():
         """
         self.success_detect = False
         self.img = img.copy()
-        kernel = (9,9)
-        self.blur = cv.blur(self.img, kernel)
-        self.lab = cv.cvtColor(self.blur, cv.COLOR_BGR2LAB)
-        self.maskGenerator.getColorMask(self.lab)  
+        self.img = cv.resize(self.img, self.imgsz)
+        self.lab = cv.cvtColor(self.img, cv.COLOR_BGR2LAB)
+        self.getColorMask(self.lab)  
     
     def baseTrial(self, detector):
-        LArea = np.ones_like(self.maskGenerator.colorMask)
-        newLab = self.colorChange(copy.deepcopy(self.lab), LArea, self.maskGenerator.colorMask, self.buffer)
+        self.getColorMask(self.lab) 
+        LArea = np.ones_like(self.colorMask)
+        newLab = self.colorChange(copy.deepcopy(self.lab), LArea, self.colorMask, self.buffer)
         newImg = cv.cvtColor(newLab, cv.COLOR_LAB2BGR) 
-        self.success_detect = detector.findHands(newImg, self.img, True)
+        self.success_detect = detector.findHands(newImg, newImg, True)
+        self.img = newImg
     
-    def yoloTrial(self, detector):
-        newLab = self.colorChange(copy.deepcopy(self.lab), self.maskGenerator.yoloMask, self.maskGenerator.yoloMask, self.buffer)
-        newImg = cv.cvtColor(newLab, cv.COLOR_LAB2BGR) 
-        cv.imshow("changed", newImg)
-        cv.waitKey(1)  # 1 millisecond
-        self.success_detect = detector.findHands(newImg, self.img, True)
-    
-    def solver(self, img, detector):
+    def solve(self, img, detector):
         """
         @brief: preprocess the image and trace the glove
         param img: input raw image
@@ -132,15 +146,80 @@ class GloveSolver():
         
         return img: visualization result of glove solver
         """
+        img_shape = (img.shape[1], img.shape[0])
         self.frameInitialize(img)
         
         # before initialization succeed, keep try initialization 
         if not self.bound_state:
-            self.bufferInitialize(self.maskGenerator.colorMask, detector)            
+            self.bufferInitialize(self.colorMask, detector)            
         
         # if succeed, preprocess the image and tracing the hand
         else:
-            self.maskGenerator.getYolov7Mask(self.img) 
-            self.yoloTrial(detector)
-            #if not self.success_detect:
-                #self.baseTrial(detector)  
+            self.baseTrial(detector)  
+            
+        self.img = cv.resize(self.img, img_shape)
+        
+        
+        
+def run_baseline(low_bound=[0, 127, 127], 
+        high_bound=[255, 137, 137], 
+        imgsz=(640, 640), 
+        source=0,
+        nosave=False,
+        save_dir=ROOT / 'runs/baseline',
+        view_img=True,
+        is_img=False):
+    detector = HandDetector(imgsz[0], imgsz[1])
+    solver = GloveSolver(np.array(low_bound), np.array(high_bound), imgsz)
+    
+    if str.isdigit(source):
+        cap = cv.VideoCapture(int(source))
+        cap.set(cv.CAP_PROP_FRAME_WIDTH, imgsz[0])
+        cap.set(cv.CAP_PROP_FRAME_HEIGHT, imgsz[1])
+    elif not is_img:
+        cap = cv.VideoCapture(source)
+    else:
+        img = cv.imread(source)
+        img = cv.resize(img, imgsz)   
+        solver.solver(img, detector)
+        if view_img:
+            cv.imshow("result", solver.img)
+            key = cv.waitKey(1)  # 1 millisecond
+        return
+    put_value([nosave, view_img, is_img])
+    if not nosave:
+        # Define the codec and create VideoWriter object
+        _, name = os.path.split(source)
+        name, _ = os.path.splitext(name)
+        if not os.path.exists(save_dir):
+            os.mkdir(save_dir)
+        put_value([str(Path(save_dir / name)), (int(cap.get(cv.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv.CAP_PROP_FRAME_HEIGHT)))])
+        save_path = str(Path(str(Path(save_dir / name)) + "_track").with_suffix('.mp4'))  # force *.mp4 suffix on results videos
+        print("Save Tracking Result to " + save_path)
+        out = cv.VideoWriter(save_path,cv.VideoWriter_fourcc(*'mp4v'), 30.0, (int(cap.get(cv.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv.CAP_PROP_FRAME_HEIGHT))))
+    
+
+    success_read = True
+    while success_read:  
+        #camera check
+        success_read, img = cap.read()
+        if not success_read:
+            if not nosave:
+                out.release()
+            break
+      
+        solver.solve(img, detector)
+        
+        put_value([copy.deepcopy(img), copy.deepcopy(detector.results)])
+        if not nosave:
+            out.write(solver.img)
+        #cvdraw
+        if str.isdigit(source) or view_img:
+            cv.imshow("result", solver.img)
+            key = cv.waitKey(1)  # 1 millisecond
+            #terminate
+            if key == 27 or key == ord('q'): 
+                break 
+
+    put_EOF()
+    cap.release()
