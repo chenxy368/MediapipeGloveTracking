@@ -1,1 +1,0 @@
-from yolov7_util.predict import run
