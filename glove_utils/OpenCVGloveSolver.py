@@ -22,7 +22,7 @@ import numpy as np
 import copy
 
 from glove_utils import HandDetector
-from glove_utils.GlobalQueue import put_value, put_EOF
+from glove_utils.GlobalQueue import put_value, put_EOF, get_arg
 
 class GloveSolver():
     def __init__(self, lowBound=np.array([0, 127, 127]), highBound=np.array([255, 137, 137]),
@@ -40,6 +40,7 @@ class GloveSolver():
         
         self.img = img # the image on present frame
         self.lab = lab # the image in LAB color space
+        self.res = img
         self.success_detect = False
     
     
@@ -130,12 +131,14 @@ class GloveSolver():
         self.lab = cv.cvtColor(self.img, cv.COLOR_BGR2LAB)
         self.getColorMask(self.lab)  
     
-    def baseTrial(self, detector):
+    def baseTrial(self, detector, img_shape):
         self.getColorMask(self.lab) 
         LArea = np.ones_like(self.colorMask)
         newLab = self.colorChange(copy.deepcopy(self.lab), LArea, self.colorMask, self.buffer)
         newImg = cv.cvtColor(newLab, cv.COLOR_LAB2BGR) 
-        self.success_detect = detector.findHands(newImg, newImg, True)
+        self.res = copy.deepcopy(newImg)
+        self.success_detect = detector.findHands(newImg, self.res, True)
+        self.res = cv.resize(self.res, img_shape)
         self.img = newImg
     
     def solve(self, img, detector):
@@ -155,8 +158,8 @@ class GloveSolver():
         
         # if succeed, preprocess the image and tracing the hand
         else:
-            self.baseTrial(detector)  
-            
+            self.baseTrial(detector, img_shape)  
+        
         self.img = cv.resize(self.img, img_shape)
         
         
@@ -167,33 +170,30 @@ def run_baseline(low_bound=[0, 127, 127],
         source=0,
         nosave=False,
         save_dir=ROOT / 'runs/baseline',
-        view_img=True,
-        is_img=False):
+        view_img=True):
     detector = HandDetector(imgsz[0], imgsz[1])
     solver = GloveSolver(np.array(low_bound), np.array(high_bound), imgsz)
-    
+    run_recognition = get_arg("recognition")
+
     if str.isdigit(source):
         cap = cv.VideoCapture(int(source))
         cap.set(cv.CAP_PROP_FRAME_WIDTH, imgsz[0])
         cap.set(cv.CAP_PROP_FRAME_HEIGHT, imgsz[1])
-    elif not is_img:
-        cap = cv.VideoCapture(source)
     else:
-        img = cv.imread(source)
-        img = cv.resize(img, imgsz)   
-        solver.solver(img, detector)
-        if view_img:
-            cv.imshow("result", solver.img)
-            key = cv.waitKey(1)  # 1 millisecond
-        return
-    put_value([nosave, view_img, is_img])
+        cap = cv.VideoCapture(source)
+    
+    if run_recognition:
+        put_value([nosave, view_img, False])
+
     if not nosave:
         # Define the codec and create VideoWriter object
         _, name = os.path.split(source)
         name, _ = os.path.splitext(name)
         if not os.path.exists(save_dir):
             os.mkdir(save_dir)
-        put_value([str(Path(save_dir / name)), (int(cap.get(cv.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv.CAP_PROP_FRAME_HEIGHT)))])
+        if run_recognition:
+            put_value([str(Path(save_dir / name)), (int(cap.get(cv.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv.CAP_PROP_FRAME_HEIGHT)))])
+        
         save_path = str(Path(str(Path(save_dir / name)) + "_track").with_suffix('.mp4'))  # force *.mp4 suffix on results videos
         print("Save Tracking Result to " + save_path)
         out = cv.VideoWriter(save_path,cv.VideoWriter_fourcc(*'mp4v'), 30.0, (int(cap.get(cv.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv.CAP_PROP_FRAME_HEIGHT))))
@@ -210,16 +210,18 @@ def run_baseline(low_bound=[0, 127, 127],
       
         solver.solve(img, detector)
         
-        put_value([copy.deepcopy(img), copy.deepcopy(detector.results)])
+        if run_recognition:
+            put_value([copy.deepcopy(solver.img), copy.deepcopy(detector.results)])
         if not nosave:
-            out.write(solver.img)
+            out.write(solver.res)
         #cvdraw
         if str.isdigit(source) or view_img:
-            cv.imshow("result", solver.img)
+            cv.imshow("result", solver.res)
             key = cv.waitKey(1)  # 1 millisecond
             #terminate
             if key == 27 or key == ord('q'): 
                 break 
 
-    put_EOF()
+    if run_recognition:
+        put_EOF()
     cap.release()

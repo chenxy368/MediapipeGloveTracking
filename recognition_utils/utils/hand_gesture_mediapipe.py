@@ -159,7 +159,7 @@ def detectWithDynamic(frame, hand_landmarks):
     Used for dynamic gesture detection. 
     This function will be called in the app.py (the main code)
     '''
-    mp_drawing.draw_landmarks(frame, hand_landmarks, HAND_CONNECTIONS)
+    #mp_drawing.draw_landmarks(frame, hand_landmarks, HAND_CONNECTIONS)
     hand_local = []
     for i in range(21):
         x = hand_landmarks.landmark[i].x*frame.shape[1]
@@ -168,7 +168,7 @@ def detectWithDynamic(frame, hand_landmarks):
     if hand_local:
         angle_list = hand_angle(hand_local)
         gesture_str = h_gesture(angle_list)
-        cv2.putText(frame,gesture_str,(0,100),0,1.3,(0,0,255),3)
+        cv2.putText(frame,gesture_str,(0,300),0,10,(0,0,255),3)
 
     return frame, gesture_str
     

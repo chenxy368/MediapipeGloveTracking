@@ -3,13 +3,13 @@
 """
 Created on Mon Mar 28 03:32:26 2022
 
-The online test program of glove solver class
+Main
 
 @author: Xinyang Chen
 """
 from glove_utils import run_baseline
 from glove_utils import init
-from yolov7_util import run
+from yolov7_utils import run
 from recognition_utils.app import run_recognition
 
 import os
@@ -26,16 +26,18 @@ ROOT = Path(os.path.relpath(ROOT, Path.cwd()))  # relative
 import argparse
 import cv2
 
-from yolov7_util.utils.general import print_args, check_requirements
+from yolov7_utils.utils.general import print_args, check_requirements
 
 def parse_opt():
     solution_parser = argparse.ArgumentParser()
     solution_parser.add_argument('--baseline', action='store_true', help='run baseline or yolo_glove_tracker')
+    solution_parser.add_argument('--norecognition', default=False, action='store_true', help='run recognition module')
+    solution_parser.add_argument('--kalmanfilter', default=False, action='store_true', help='run kalman filter module')
+    solution_parser.add_argument('--target_gesture', type=str, default='five', help='target gesture of dynamic recognition')
     solution_type, _ = solution_parser.parse_known_args()
     
     
     if solution_type.baseline:
-        baseline = True
         # baseline arg
         baseline_parser = argparse.ArgumentParser()
         baseline_parser.add_argument('--low_bound', nargs='+', type=int, help='low boundary for color mask in CIELAB colorspace')
@@ -45,14 +47,12 @@ def parse_opt():
         baseline_parser.add_argument('--nosave', default = False, action='store_true', help='do not save results')
         baseline_parser.add_argument('--save_dir', default = ROOT / 'runs/baseline', help='save results to dir')
         baseline_parser.add_argument('--view-img', default = False, action='store_true', help='show results')
-        baseline_parser.add_argument('--is_img', default = False, action='store_true', help='show results')
         opt, _ = baseline_parser.parse_known_args()
         opt.imgsz *= 2 if len(opt.imgsz) == 1 else 1  # expand
         print_args(vars(opt))
         
-        return baseline, opt
+        return solution_type, opt
     
-    baseline = False
     # yolo arg
     yolo_parser = argparse.ArgumentParser()
     yolo_parser.add_argument('--weights', nargs='+', type=str, default=ROOT / 'yolov5s-seg.pt', help='model path(s)')
@@ -81,31 +81,37 @@ def parse_opt():
     yolo_parser.add_argument('--hide-conf', default=False, action='store_true', help='hide confidences')
     yolo_parser.add_argument('--half', action='store_true', help='use FP16 half-precision inference')
     yolo_parser.add_argument('--dnn', action='store_true', help='use OpenCV DNN for ONNX inference')
+    yolo_parser.add_argument('--dataset_generation', default=False, action='store_true', help='use OpenCV for dataset generation')
+    yolo_parser.add_argument('--color-shift', default=False, action='store_true', help='Using color shift for glove preprocessing')
     opt, _ = yolo_parser.parse_known_args()
     opt.imgsz *= 2 if len(opt.imgsz) == 1 else 1  # expand
     print_args(vars(opt))
-    return baseline, opt
+    return solution_type, opt
 
 
-def main(baseline, opt):
-    init()
-    if baseline:
-        t1 = Thread(target = run_recognition)
+def main(solution_type, opt):
+    init(solution_type)
+    gesture = str(solution_type.target_gesture)
+    print(gesture)
+    
+    if not solution_type.norecognition:
+        t1 = Thread(target = run_recognition, args=(gesture,))
         t1.start()
+
+    if solution_type.baseline:
         t2 = Thread(target = run_baseline(**vars(opt)))
         t2.start()
     else:
         check_requirements(exclude=('tensorboard', 'thop'))
-        t1 = Thread(target = run_recognition)
-        t1.start()
         t2 = Thread(target = run(**vars(opt)))
         t2.start()
 
     cv2.destroyAllWindows()
-    t1.join()
+    if not solution_type.norecognition:
+        t1.join()
     t2.join()
 
 if __name__ == "__main__":
-    baseline, opt = parse_opt()
-    main(baseline, opt)
+    solution_type, opt = parse_opt()
+    main(solution_type, opt)
         
