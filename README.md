@@ -96,3 +96,47 @@ def parse_opt():
    print_args(vars(opt))
    return solution_type, opt
 ```
+
+## Dataset Generation
+The Automatic Glove Dataset (AGD) is generated using an automatic labeling module, which leverages YOLOv7's segmentation results and MediaPipe's hand-tracking outcomes to obtain a refined mask of gloves. The primary objective of this dataset is to enable the model to focus on specific types of gloves used in target scenarios. 
+
+![1700613587898](https://github.com/chenxy368/MediapipeGloveTracking/assets/98029669/73eb9b6c-90f8-4b6a-a2af-62749935faa7)
+
+```python
+if dataset_generation and save_meanshift:
+   folder_path, file_name = os.path.split(save_path)
+                
+   new_folder_path = os.path.join(folder_path, 'mask_res')
+   if not os.path.exists(new_folder_path):
+      os.makedirs(new_folder_path)
+   save_path_mask = os.path.join(new_folder_path, file_name)
+   save_path_mask = save_path_mask.replace('.mp4', '_' + str(meanshift_count) + '.jpg')
+
+   cv2.imwrite(save_path_mask, cv2.bitwise_and(save_mask_img, save_mask_img, mask=label_mask))
+
+   new_folder_path = os.path.join(folder_path, 'images')
+   if not os.path.exists(new_folder_path):
+      os.makedirs(new_folder_path)
+                        
+   save_path_img = os.path.join(new_folder_path, file_name)
+   save_path_img = save_path_img.replace('.mp4', '_' + str(meanshift_count) + '.jpg')
+   cv2.imwrite(save_path_img, save_mask_img)
+                         
+   new_folder_path = os.path.join(folder_path, 'labels')
+   if not os.path.exists(new_folder_path):
+      os.makedirs(new_folder_path)
+   save_path_label = os.path.join(new_folder_path, file_name)
+   save_path_label = save_path_label.replace('.mp4', '_' + str(meanshift_count) + '.txt')
+
+   # We use No.80 to mark the gloves. YOLOv7's given weight trained by COCO dataset already has 80 classes and we added a new class.
+   segment = [80]
+    
+   for j in range(approx.shape[0]-1, 0, -1):
+      segment.append(approx[j][0][0] / label_mask.shape[1])
+      segment.append(approx[j][0][1] / label_mask.shape[0])
+            
+   with open(save_path_label, "w") as file:
+      file.write(" ".join(str(round(j, 6)) for j in segment) + "\n") 
+```
+To enable the module, use a video source and add argument --dataset_generation. The module can find successfully detected frames and refine the mask. In the project, there are three folders: mask_res, images, and labels. The mask_res have the masked images which are used to clean low-quality samples. You can directly use the images and labels folders to finetune YOLOv7 models. However, the training configuration file cannot be generated automatically here so you may need to write your yaml file manually. More information on training can be referred to at (https://github.com/WongKinYiu/yolov7/tree/main).
+
