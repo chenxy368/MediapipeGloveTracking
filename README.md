@@ -140,3 +140,44 @@ if dataset_generation and save_meanshift:
 ```
 To enable the module, use a video source and add argument --dataset_generation. The module can find successfully detected frames and refine the mask. In the project, there are three folders: mask_res, images, and labels. The mask_res have the masked images which are used to clean low-quality samples. You can directly use the images and labels folders to finetune YOLOv7 models. However, the training configuration file cannot be generated automatically here so you may need to write your yaml file manually. More information on training can be referred to at (https://github.com/WongKinYiu/yolov7/tree/main).
 
+Since Yolov7's repo does not include a specific tutorial of training, here is a brief introduction. At u7 branch, you can find a coco.yaml file in seg's data folder.
+```yaml
+# YOLOv5 🚀 by Ultralytics, GPL-3.0 license
+# COCO 2017 dataset http://cocodataset.org by Microsoft
+# Example usage: python train.py --data coco.yaml
+# parent
+# ├── yolov5
+# └── datasets
+#     └── coco  ← downloads here (20.1 GB)
+
+
+# Train/val/test sets as 1) dir: path/to/imgs, 2) file: path/to/imgs.txt, or 3) list: [path/to/imgs1, path/to/imgs2, ..]
+path: ../datasets/coco  # dataset root dir
+train: train2017.txt  # train images (relative to 'path') 118287 images
+val: val2017.txt  # val images (relative to 'path') 5000 images
+test: test-dev2017.txt  # 20288 of 40670 images, submit to https://competitions.codalab.org/competitions/20794
+
+# Classes
+names:
+  0: person
+  1: bicycle
+  2: car
+  3: motorcycle
+  4: airplane
+  ...
+  77: teddy bear
+  78: hair drier
+  79: toothbrush
+```
+If you want to train Yolov7's model with your own dataset, you just need to change the path. Like the coco dataset, you should have three .txt files to specify which samples are used in training, testing, and validation. The text file consists of relative paths to all images.
+```txt
+./images/IMG_20230506_152912.jpg
+./images/IMG_20230506_152913.jpg
+./images/IMG_20230506_152915.jpg
+./images/IMG_20230506_152917.jpg
+./images/IMG_20230506_152919.jpg
+./images/IMG_20230506_152921.jpg
+./images/IMG_20230506_152923.jpg
+...
+```
+Each image should have its own label. For segmentation, it's a one-line .txt file specifying a polygon. 
