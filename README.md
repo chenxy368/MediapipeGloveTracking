@@ -19,11 +19,15 @@ python main.py --weight $weight_path --source $source_path --name $name --target
 ## Output
 If you input an image, the static recognizer will check static gestures.
 
-![1700524060231](https://github.com/chenxy368/MediapipeGloveTracking/assets/98029669/1726e4a7-7324-456d-a388-dc64eae84969)
+<p align="center">
+   <img src="readme/static.png">
+</p>
 
 If you input a video, the static and dynamic recognizer will check static and dynamic gestures separately. "Finger Gesture: XXX" is the result given by a machine learning model. Refer to more information at (https://github.com/Flora9978/CerLab_RealTime_HandGesture_Recognition). "Gesture: XXX" is the result given by a heuristic classifier. 
 
-![1700525041866](https://github.com/chenxy368/MediapipeGloveTracking/assets/98029669/beb3d06f-e6c2-4ca2-8502-be6ffb2b7da3)
+<p align="center">
+   <img src="readme/dynamic.png">
+</p>
 
 ## Arguments
 Checking main.py, there are many arguments.
@@ -100,7 +104,9 @@ def parse_opt():
 ## Dataset Generation
 The Automatic Glove Dataset (AGD) is generated using an automatic labeling module, which leverages YOLOv7's segmentation results and MediaPipe's hand-tracking outcomes to obtain a refined mask of gloves. The primary objective of this dataset is to enable the model to focus on specific types of gloves used in target scenarios. 
 
-![1700613587898](https://github.com/chenxy368/MediapipeGloveTracking/assets/98029669/73eb9b6c-90f8-4b6a-a2af-62749935faa7)
+<p align="center">
+   <img src="readme/AGD.png">
+</p>
 
 ```python
 if dataset_generation and save_meanshift:
