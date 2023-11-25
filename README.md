@@ -181,3 +181,16 @@ If you want to train Yolov7's model with your own dataset, you just need to chan
 ...
 ```
 Each image should have its own label. For segmentation, it's a one-line .txt file specifying a polygon. 
+```txt
+80 0.250736 0.85159 0.266335 0.829752 0.291916 0.825384 0.290668 0.84535 0.306267 0.84847 ...
+```
+The first number is the object ID. Each two floats specify a point in a two-dimensional coordinate. 
+
+Each image file should have its own label txt file. Their path should be as follows.
+```txt
+path_to_root/images/xxx.jpg
+path_to_root/labels/xxx.txt
+
+./images/IMG_20230506_152912.jpg
+./labels/IMG_20230506_152912.jpg
+```
